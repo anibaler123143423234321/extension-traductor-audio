@@ -24,11 +24,13 @@ export class WebSpeechEngine {
   // Puede abrir el micrófono por sí mismo sin que se le pase una pista.
   static opensOwnMic = true;
 
-  constructor({ track, sourceLang, onTranscript, onError }) {
+  constructor({ track, sourceLang, onTranscript, onError, onWarning }) {
     this.track = track;
     this.lang = getLanguage(sourceLang).speech;
     this.onTranscript = onTranscript;
     this.onError = onError;
+    this.onWarning = onWarning;
+    this.silentSessions = 0;
     this.running = false;
     this.recognition = null;
     this.pendingInterim = '';
@@ -128,6 +130,7 @@ export class WebSpeechEngine {
     }
     this.pendingInterim = interim.trim();
     this.networkErrors = 0;
+    this.silentSessions = 0;
     this.sessionHadResult = true;
     if (this.pendingInterim) {
       this.onTranscript({ text: this.pendingInterim, isFinal: false });
@@ -166,6 +169,11 @@ export class WebSpeechEngine {
   #mapError(code) {
     switch (code) {
       case 'no-speech':
+        // Sin voz durante ~2 sesiones seguidas: probablemente no llega audio.
+        if (++this.silentSessions === 2) {
+          this.onWarning?.('No se detecta voz. Comprueba que el micrófono correcto esté activo y sin silenciar, y que se hable en el idioma elegido.');
+        }
+        return null;
       case 'aborted':
         return null;
       case 'network':
