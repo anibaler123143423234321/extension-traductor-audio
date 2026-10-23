@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LiveAudio Translate</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <div class="logo-box">
+        <img src="icons/icon48.png" alt="" class="logo-img">
+        <div>
+          <h1 class="logo-title">LiveAudio <span>Translate</span></h1>
+          <p class="logo-subtitle" id="langSubtitle">Subtítulos traducidos en vivo</p>
+        </div>
+      </div>
+      <div class="status-badge" id="statusBadge">
+        <span class="status-dot"></span>
+        <span class="status-text" id="statusText">Listo</span>
+      </div>
+    </header>
+
+    <section class="card main-card">
+      <div class="segmented" role="radiogroup" aria-label="Fuente de audio">
+        <label class="segment">
+          <input type="radio" name="source" value="tab" checked>
+          <span>🌐 Pestaña</span>
+        </label>
+        <label class="segment">
+          <input type="radio" name="source" value="display">
+          <span>🖥️ Ventana / App</span>
+        </label>
+        <label class="segment">
+          <input type="radio" name="source" value="mic">
+          <span>🎙️ Micrófono</span>
+        </label>
+      </div>
+      <p class="hint" id="sourceHint"></p>
+
+      <button id="btnToggle" class="btn-primary">
+        <span class="btn-icon" id="btnIcon">▶</span>
+        <span id="btnText">Iniciar en esta pestaña</span>
+      </button>
+      <button id="btnViewer" class="btn-secondary" title="Ventana independiente para tu segundo monitor o para no mostrar subtítulos al compartir pantalla">
+        <span class="btn-icon">🗗</span>
+        <span>Abrir en segundo monitor</span>
+      </button>
+
+      <div class="live-info" id="liveInfo" hidden>
+        <span class="visualizer" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+        <span>Motor: <strong id="engineName">—</strong></span>
+        <span class="live-title" id="liveTitle"></span>
+      </div>
+    </section>
+
+    <div class="notice" id="notice" role="alert" hidden>
+      <span class="notice-text" id="noticeText"></span>
+      <div class="notice-actions">
+        <button class="notice-action" id="noticeAction" hidden></button>
+        <button class="notice-close" id="noticeClose" title="Cerrar aviso" aria-label="Cerrar aviso">✕</button>
+      </div>
+    </div>
+
+    <section class="card">
+      <div class="lang-row">
+        <label class="field">
+          <span>Audio en</span>
+          <select id="sourceLang"></select>
+        </label>
+        <button class="btn-swap" id="btnSwap" title="Intercambiar idiomas" aria-label="Intercambiar idiomas">⇄</button>
+        <label class="field">
+          <span>Traducir a</span>
+          <select id="targetLang"></select>
+        </label>
+      </div>
+      <label class="field">
+        <span>Motor de voz</span>
+        <select id="engineSelect"></select>
+      </label>
+      <p class="hint" id="engineHint"></p>
+    </section>
+
+    <details class="card keys-card" id="keysCard">
+      <summary>🔑 Claves de API <span class="optional">opcionales</span></summary>
+      <label class="field">
+        <span>Deepgram (streaming, máxima precisión)</span>
+        <div class="input-group">
+          <input type="password" id="deepgramKey" placeholder="Pega tu clave de Deepgram" autocomplete="off" spellcheck="false">
+          <button class="btn-icon-only toggle-eye" data-target="deepgramKey" title="Ver u ocultar" aria-label="Ver u ocultar clave">👁</button>
+        </div>
+      </label>
+      <a href="https://console.deepgram.com/signup" target="_blank" rel="noopener" class="link">➜ Crear cuenta en Deepgram (incluye crédito gratis)</a>
+
+      <label class="field">
+        <span>Groq Whisper (por frases)</span>
+        <div class="input-group">
+          <input type="password" id="groqKey" placeholder="gsk_..." autocomplete="off" spellcheck="false">
+          <button class="btn-icon-only toggle-eye" data-target="groqKey" title="Ver u ocultar" aria-label="Ver u ocultar clave">👁</button>
+        </div>
+      </label>
+      <a href="https://console.groq.com/keys" target="_blank" rel="noopener" class="link">➜ Obtener clave gratis en Groq Cloud</a>
+
+      <button id="btnSaveKeys" class="btn-accent">Guardar claves</button>
+    </details>
+
+    <section class="card settings-grid">
+      <label class="field">
+        <span>Visualización</span>
+        <select id="modeSelect">
+          <option value="bilingual">Bilingüe</option>
+          <option value="translation">Solo traducción</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Tamaño de letra <output id="fontSizeValue"></output></span>
+        <input type="range" id="fontSize" min="14" max="40" step="2">
+      </label>
+    </section>
+
+    <section class="history">
+      <div class="history-header">
+        <span class="history-title">Historial</span>
+        <div class="history-actions">
+          <button id="btnCopy" class="btn-small" title="Copiar al portapapeles">📋 Copiar</button>
+          <button id="btnDownload" class="btn-small" title="Descargar .txt">💾 Guardar</button>
+          <button id="btnClear" class="btn-small btn-danger" title="Borrar historial" aria-label="Borrar historial">🗑️</button>
+        </div>
+      </div>
+      <div class="history-feed" id="historyFeed"></div>
+    </section>
+
+    <footer class="app-footer">
+      Atajo: <kbd id="shortcut"></kbd> · <a href="#" id="btnShortcuts">cambiar</a>
+    </footer>
+  </div>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

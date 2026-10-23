@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LiveAudio Translate - Permiso de micrófono</title>
+  <link rel="stylesheet" href="permission.css">
+</head>
+<body>
+  <main class="card">
+    <img src="icons/icon128.png" alt="" class="logo" width="64" height="64">
+    <h1>Permiso de micrófono</h1>
+    <p>
+      Chrome pide este permiso <strong>una sola vez</strong> para el motor gratuito <em>Chrome Live</em>
+      y para la fuente <em>Micrófono</em>.
+    </p>
+    <p class="muted">
+      Si traduces una pestaña o una ventana, la extensión escucha solo ese audio; tu micrófono no se graba.
+    </p>
+    <button id="btnAllow" class="btn">Permitir micrófono</button>
+    <p id="result" class="result" role="status"></p>
+  </main>
+  <script type="module" src="permission.js"></script>
+</body>
+</html>

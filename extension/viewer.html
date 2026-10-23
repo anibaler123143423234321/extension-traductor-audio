@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LiveAudio Translate · Segundo monitor</title>
+  <link rel="stylesheet" href="viewer.css">
+</head>
+<body>
+  <div class="viewer">
+    <header class="viewer-header">
+      <div class="header-left">
+        <span class="status-indicator" id="statusIndicator">
+          <span class="pulse-dot"></span>
+          <span id="statusText">Esperando subtítulos</span>
+        </span>
+        <span class="provider-badge" id="engineBadge" hidden></span>
+      </div>
+      <div class="header-controls">
+        <button id="btnCapture" class="btn-ctrl btn-highlight" title="Elige una ventana, app o pantalla para escuchar (Zoom, Teams, otra ventana…)">
+          🎙️ <span id="captureText">Escuchar otra ventana / app</span>
+        </button>
+        <button id="btnMode" class="btn-ctrl" title="Bilingüe o solo traducción">🔀 <span id="modeText"></span></button>
+        <button id="btnFontDec" class="btn-ctrl" title="Letra más pequeña">A-</button>
+        <button id="btnFontInc" class="btn-ctrl" title="Letra más grande">A+</button>
+        <button id="btnPip" class="btn-ctrl" title="Ventanita flotante siempre visible sobre otras apps">📌 Siempre visible</button>
+        <button id="btnFullscreen" class="btn-ctrl" title="Pantalla completa" aria-label="Pantalla completa">⛶</button>
+      </div>
+    </header>
+
+    <div class="notice" id="notice" role="alert" hidden>
+      <span id="noticeText"></span>
+      <div class="notice-actions">
+        <button class="notice-action" id="noticeAction" hidden></button>
+        <button class="notice-close" id="noticeClose" aria-label="Cerrar aviso">✕</button>
+      </div>
+    </div>
+
+    <main class="live-card" id="liveCard">
+      <div class="live-header">
+        <span class="live-tag">En vivo</span>
+        <span class="live-clock" id="liveClock">--:--:--</span>
+      </div>
+      <div class="previous" id="textPrevious"></div>
+      <div class="line line-translated">
+        <span class="tag-lang tag-translated" id="tagTranslated"></span>
+        <p class="text-main pending" id="textTranslated">Esperando audio…</p>
+      </div>
+      <div class="line line-original">
+        <span class="tag-lang tag-original" id="tagOriginal"></span>
+        <p class="text-sub" id="textOriginal"></p>
+      </div>
+    </main>
+
+    <section class="stream-section">
+      <div class="stream-header">
+        <span class="stream-title">Transcripción completa</span>
+        <div class="stream-actions">
+          <label class="autoscroll-label"><input type="checkbox" id="chkAutoScroll" checked> Auto-scroll</label>
+          <button id="btnCopy" class="btn-action">📋 Copiar</button>
+          <button id="btnExport" class="btn-action">💾 Exportar .txt</button>
+          <button id="btnClear" class="btn-action btn-danger">🗑️ Limpiar</button>
+        </div>
+      </div>
+      <div class="stream-list" id="streamList"></div>
+    </section>
+  </div>
+
+  <script type="module" src="viewer.js"></script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "LiveAudio Translate | Subtítulos traducidos en vivo",
+  "short_name": "LiveAudio Translate",
+  "version": "2.0.0",
+  "description": "Escucha el audio de cualquier pestaña, ventana o micrófono y muestra subtítulos traducidos en tiempo real (Windows y Mac).",
+  "minimum_chrome_version": "116",
+  "permissions": ["tabCapture", "offscreen", "activeTab", "storage", "scripting", "tabs"],
+  "host_permissions": [
+    "<all_urls>",
+    "https://translate.googleapis.com/*",
+    "https://api.groq.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "LiveAudio Translate",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "commands": {
+    "toggle-caption": {
+      "suggested_key": {
+        "default": "Alt+Shift+T",
+        "mac": "Alt+Shift+T"
+      },
+      "description": "Iniciar o detener los subtítulos en la pestaña actual"
+    }
+  }
+}
