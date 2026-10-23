@@ -6,6 +6,9 @@
 import { CaptionPipeline } from '../extension/lib/pipeline.js';
 import { fillLanguageSelect, getLanguage } from '../extension/lib/languages.js';
 import { AppError } from '../extension/lib/errors.js';
+import { createLogger, getLogEntries, onLog, formatLogEntry } from '../extension/lib/log.js';
+
+const log = createLogger('web');
 
 const SETTINGS_KEY = 'liveaudio-web:settings';
 const HISTORY_KEY = 'liveaudio-web:history';
@@ -19,6 +22,7 @@ const DEFAULTS = Object.freeze({
   captionMode: 'bilingual',
   fontSize: 30,
   keepAwake: true,
+  showLog: false,
   deepgramApiKey: '',
   groqApiKey: ''
 });
@@ -69,6 +73,12 @@ const els = {
   fontSize: $('fontSize'),
   fontSizeValue: $('fontSizeValue'),
   keepAwake: $('keepAwake'),
+  showLog: $('showLog'),
+  debugPanel: $('debugPanel'),
+  debugLog: $('debugLog'),
+  btnMicTest: $('btnMicTest'),
+  btnCopyLog: $('btnCopyLog'),
+  btnHideLog: $('btnHideLog'),
   shareSheet: $('shareSheet'),
   qr: $('qr'),
   shareUrl: $('shareUrl'),
@@ -89,12 +99,14 @@ const state = {
   captions: new Map()
 };
 
-init();
-
 // ---------------------------------------------------------------------------
 // Inicio
 // ---------------------------------------------------------------------------
 function init() {
+  // ?debug en la dirección activa el registro de diagnóstico en pantalla.
+  if (new URLSearchParams(location.search).has('debug')) state.settings.showLog = true;
+  logEnvironment();
+
   fillLanguageSelect(els.sourceLang, state.settings.sourceLang);
   fillLanguageSelect(els.targetLang, state.settings.targetLang);
   renderEngineOptions();
@@ -102,17 +114,33 @@ function init() {
   els.groqKey.value = state.settings.groqApiKey;
   els.fontSize.value = state.settings.fontSize;
   els.keepAwake.checked = state.settings.keepAwake;
+  els.showLog.checked = state.settings.showLog;
   document.querySelector(`input[name="captionMode"][value="${state.settings.captionMode}"]`).checked = true;
 
   applySettings();
   renderHistory();
   renderStatus();
+  setupDebugPanel();
   bindEvents();
   checkEnvironment();
 
   if ('serviceWorker' in navigator && window.isSecureContext) {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+    navigator.serviceWorker.register('sw.js').catch((error) => log.warn('No se pudo registrar el service worker', error.message));
   }
+}
+
+function logEnvironment() {
+  const { engine, sourceLang, targetLang, deepgramApiKey, groqApiKey } = state.settings;
+  log.info('Web cargada', {
+    navegador: UA,
+    https: window.isSecureContext,
+    reconocimientoDeVoz: HAS_SPEECH ? ('SpeechRecognition' in window ? 'SpeechRecognition' : 'webkitSpeechRecognition') : 'no disponible',
+    getUserMedia: Boolean(navigator.mediaDevices?.getUserMedia),
+    plataforma: IS_IOS ? 'iOS' : IS_ANDROID ? 'Android' : 'escritorio',
+    motor: engine,
+    idiomas: `${sourceLang} → ${targetLang}`,
+    claves: { deepgram: Boolean(deepgramApiKey), groq: Boolean(groqApiKey) }
+  });
 }
 
 function checkEnvironment() {
@@ -166,6 +194,17 @@ function bindEvents() {
     if (event.target.name === 'engine') updateSettings({ engine: event.target.value });
   });
   els.fontSize.addEventListener('input', () => updateSettings({ fontSize: Number(els.fontSize.value) }, { restart: false }));
+  els.showLog.addEventListener('change', () => {
+    updateSettings({ showLog: els.showLog.checked }, { restart: false });
+    renderDebugVisibility();
+  });
+  els.btnHideLog.addEventListener('click', () => {
+    els.showLog.checked = false;
+    updateSettings({ showLog: false }, { restart: false });
+    renderDebugVisibility();
+  });
+  els.btnCopyLog.addEventListener('click', copyLog);
+  els.btnMicTest.addEventListener('click', testMicrophone);
   els.keepAwake.addEventListener('change', () => {
     updateSettings({ keepAwake: els.keepAwake.checked }, { restart: false });
     if (state.status === 'listening') (els.keepAwake.checked ? requestWakeLock() : releaseWakeLock());
@@ -193,6 +232,7 @@ async function startListening() {
   hideBanner();
   setStatus('starting');
   const settings = { ...state.settings };
+  log.info('Botón de micrófono: empezar a escuchar', { motor: settings.engine });
 
   // En iPhone el audio solo se activa si se crea durante el toque del usuario.
   if (firstEngineNeedsAudio(settings)) {
@@ -219,6 +259,7 @@ async function startListening() {
     setStatus('listening');
     requestWakeLock();
   } catch (error) {
+    log.error('No se pudo empezar a escuchar', { codigo: error.code, mensaje: error.message });
     if (state.pipeline !== pipeline) return;
     teardown();
     state.wantListening = false;
@@ -228,12 +269,14 @@ async function startListening() {
 }
 
 function stopListening() {
+  log.info('Escucha detenida');
   state.wantListening = false;
   teardown();
   setStatus('idle');
 }
 
 function pauseListening() {
+  log.info('Escucha en pausa');
   teardown();
   setStatus('paused');
 }
@@ -264,9 +307,11 @@ async function acquireTrack() {
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
     });
   } catch (error) {
+    log.error('getUserMedia falló', { nombre: error.name, mensaje: error.message });
     throw micError(error);
   }
   const track = state.micStream.getAudioTracks()[0];
+  log.info('Micrófono abierto con getUserMedia', { dispositivo: track.label, ajustes: track.getSettings?.() });
   track.addEventListener('ended', handleMicLost);
   return track;
 }
@@ -279,12 +324,14 @@ function releaseTrack(track) {
 
 function handleMicLost() {
   // Llamada entrante, otra app usando el micrófono, auriculares desconectados…
+  log.warn('La pista del micrófono terminó');
   if (state.status !== 'listening') return;
   pauseListening();
   showBanner('warning', 'Se perdió el micrófono. Toca el botón para continuar.');
 }
 
 function handleVisibility() {
+  log.info(document.hidden ? 'Página oculta (pantalla bloqueada o cambio de app)' : 'Página visible');
   if (document.hidden) {
     if (state.status === 'listening' || state.status === 'starting') pauseListening();
     return;
@@ -305,6 +352,7 @@ function handlePipelineStatus(status) {
     state.engineId = status.engine;
     renderStatus();
   } else if (status.type === 'warning') {
+    log.warn('Aviso mostrado', { codigo: status.code, mensaje: status.message });
     showBanner('warning', friendlyMessage(status));
   } else if (status.type === 'error') {
     if (document.hidden) {
@@ -329,6 +377,7 @@ function micError(error) {
 // Mensajes de error comprensibles
 // ---------------------------------------------------------------------------
 function showError(error) {
+  log.error('Aviso de error mostrado', { codigo: error.code, mensaje: error.message });
   const action = /^(deepgram|groq)-(missing-key|auth|connect)$/.test(error.code) || error.code === 'webspeech-unavailable'
     ? { label: 'Ajustes', run: openSettings }
     : null;
@@ -398,6 +447,7 @@ function placeholderText() {
 // Estado visual
 // ---------------------------------------------------------------------------
 function setStatus(status) {
+  if (state.status !== status) log.debug(`Estado: ${state.status} → ${status}`);
   state.status = status;
   renderStatus();
 }
@@ -452,7 +502,10 @@ async function requestWakeLock() {
   try {
     state.wakeLock = await navigator.wakeLock.request('screen');
     state.wakeLock.addEventListener('release', () => { state.wakeLock = null; });
-  } catch { /* batería baja u otra restricción */ }
+    log.debug('Pantalla encendida (wake lock activo)');
+  } catch (error) {
+    log.debug('No se pudo mantener la pantalla encendida', error.message);
+  }
 }
 
 function releaseWakeLock() {
@@ -652,6 +705,102 @@ async function flash(button, text) {
 }
 
 // ---------------------------------------------------------------------------
+// Diagnóstico
+// ---------------------------------------------------------------------------
+const MAX_LOG_LINES = 400;
+
+function setupDebugPanel() {
+  for (const entry of getLogEntries()) appendLogLine(entry);
+  onLog(appendLogLine);
+  renderDebugVisibility();
+}
+
+function renderDebugVisibility() {
+  els.debugPanel.hidden = !state.settings.showLog;
+  if (state.settings.showLog) els.debugLog.scrollTop = els.debugLog.scrollHeight;
+}
+
+function appendLogLine(entry) {
+  const line = document.createElement('div');
+  line.className = entry.level;
+  line.textContent = formatLogEntry(entry);
+  const nearBottom = els.debugLog.scrollHeight - els.debugLog.scrollTop - els.debugLog.clientHeight < 40;
+  els.debugLog.append(line);
+  while (els.debugLog.childElementCount > MAX_LOG_LINES) els.debugLog.firstElementChild.remove();
+  if (nearBottom) els.debugLog.scrollTop = els.debugLog.scrollHeight;
+}
+
+async function copyLog() {
+  try {
+    await navigator.clipboard.writeText(getLogEntries().map(formatLogEntry).join('\n'));
+    flash(els.btnCopyLog, '✓ Copiado');
+  } catch {
+    flash(els.btnCopyLog, 'No se pudo');
+  }
+}
+
+/**
+ * Abre el micrófono 5 segundos y registra qué dispositivo usa el navegador y
+ * cuánto sonido llega. Sirve para saber si el problema es el micrófono.
+ */
+async function testMicrophone() {
+  if (state.status === 'listening' || state.status === 'starting') {
+    log.warn('Detén la escucha antes de probar el micrófono');
+    return;
+  }
+  els.btnMicTest.disabled = true;
+  log.info('Prueba de micrófono: habla durante 5 segundos…');
+  let stream;
+  let context;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const track = stream.getAudioTracks()[0];
+    log.info('Dispositivo usado', { nombre: track.label, ajustes: track.getSettings?.() });
+
+    const inputs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'audioinput');
+    log.info('Entradas de audio disponibles', inputs.map((d) => `${d.deviceId === 'default' ? '[predeterminada] ' : ''}${d.label || '(sin nombre)'}`));
+
+    const AudioContextImpl = window.AudioContext || window.webkitAudioContext;
+    context = new AudioContextImpl();
+    await context.resume().catch(() => {});
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 2048;
+    context.createMediaStreamSource(stream).connect(analyser);
+    const samples = new Float32Array(analyser.fftSize);
+
+    let peakDb = -Infinity;
+    for (let second = 1; second <= 5; second++) {
+      let secondPeak = 0;
+      for (let i = 0; i < 10; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        analyser.getFloatTimeDomainData(samples);
+        let sum = 0;
+        for (const value of samples) sum += value * value;
+        secondPeak = Math.max(secondPeak, Math.sqrt(sum / samples.length));
+      }
+      const db = secondPeak > 0 ? 20 * Math.log10(secondPeak) : -100;
+      peakDb = Math.max(peakDb, db);
+      const bars = '█'.repeat(Math.max(0, Math.min(20, Math.round((db + 70) / 3))));
+      log.info(`Nivel ${second}/5: ${db.toFixed(0)} dB ${bars}`);
+    }
+
+    if (peakDb < -55) {
+      log.error('No llega sonido del micrófono. Revisa la entrada de audio del sistema (en Mac: Ajustes del Sistema → Sonido → Entrada) y que no esté silenciado.');
+    } else if (peakDb < -40) {
+      log.warn('Llega muy poco sonido. Acerca el micrófono o sube el volumen de entrada.');
+    } else {
+      log.info('El micrófono funciona: llega sonido correctamente.');
+    }
+  } catch (error) {
+    log.error('La prueba de micrófono falló', { nombre: error.name, mensaje: error.message });
+  } finally {
+    stream?.getTracks().forEach((track) => track.stop());
+    context?.close().catch(() => {});
+    els.btnMicTest.disabled = false;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Compartir
 // ---------------------------------------------------------------------------
 function shareLink() {
@@ -688,3 +837,6 @@ async function nativeShare() {
     await navigator.share({ title: 'LiveAudio Translate', text: 'Traducción en vivo desde tu celular', url: shareLink() });
   } catch { /* el usuario canceló */ }
 }
+
+// Se inicia al final, cuando ya están declaradas todas las constantes del módulo.
+init();

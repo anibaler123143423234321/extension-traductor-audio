@@ -105,6 +105,28 @@ try {
     await shot(page, 'web-compartir.png');
   });
 
+  await step('Diagnóstico (?debug): registro en pantalla y prueba de micrófono', async () => {
+    await page.goto(`${webUrl}?debug`);
+    await page.locator('#debugPanel:not([hidden])').waitFor();
+    assert.match(await page.locator('#debugLog').textContent(), /\[web\] Web cargada/);
+    await page.locator('#btnMicTest').click();
+    await page.locator('#debugLog', { hasText: 'Prueba de micrófono' }).waitFor();
+    await page.locator('#debugLog', { hasText: /El micrófono funciona|Llega muy poco sonido|No llega sonido/ }).waitFor({ timeout: 15000 });
+    const text = await page.locator('#debugLog').textContent();
+    assert.match(text, /Dispositivo usado .*Fake Default Audio Input/);
+    assert.match(text, /El micrófono funciona/);
+
+    await useSettings({ engine: 'groq', groqApiKey: 'gsk_test', showLog: true });
+    await listenUntil('[ES] Hello everyone', { engine: 'Groq Whisper' });
+    const afterListening = await page.locator('#debugLog').textContent();
+    assert.match(afterListening, /\[pipeline\] Motor activo: groq/);
+    assert.match(afterListening, /\[groq\] Respuesta #0/);
+    assert.match(afterListening, /\[pipeline\] Traducción #0/);
+    assert.doesNotMatch(afterListening, /gsk_test/, 'nunca se registran claves');
+    await shot(page, 'web-diagnostico.png');
+    await stop();
+  });
+
   await step('Sin clave ni reconocimiento de voz se explica qué hacer', async () => {
     const ctx = await browser.newContext({ ...devices['iPhone 14'], serviceWorkers: 'block' });
     await ctx.addInitScript(() => {
@@ -112,9 +134,12 @@ try {
       delete window.webkitSpeechRecognition;
     });
     const iphone = await ctx.newPage();
+    iphone.on('pageerror', (error) => pageErrors.push(`iPhone: ${error.message}`));
     await iphone.goto(webUrl);
     await iphone.locator('#banner:not([hidden])').waitFor();
     assert.match(await iphone.locator('#bannerText').textContent(), /En iPhone usa Safari/);
+    await iphone.locator('#bannerAction').click();
+    await iphone.locator('#settingsSheet[open]').waitFor();
     await shot(iphone, 'web-iphone-aviso.png');
     await ctx.close();
   });

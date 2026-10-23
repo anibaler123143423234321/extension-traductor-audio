@@ -59,6 +59,18 @@
         <p class="original" id="textOriginal"></p>
       </section>
 
+      <section class="debug-panel" id="debugPanel" aria-label="Registro de diagnóstico" hidden>
+        <div class="transcript-head">
+          <h2>Diagnóstico</h2>
+          <div class="transcript-actions">
+            <button class="chip" id="btnMicTest">Probar micrófono</button>
+            <button class="chip" id="btnCopyLog">Copiar</button>
+            <button class="chip" id="btnHideLog" aria-label="Ocultar diagnóstico">✕</button>
+          </div>
+        </div>
+        <pre class="debug-log" id="debugLog"></pre>
+      </section>
+
       <section class="transcript" aria-label="Transcripción">
         <div class="transcript-head">
           <h2>Transcripción</h2>
@@ -131,6 +143,10 @@
         <label class="switch">
           <input type="checkbox" id="keepAwake">
           <span>Mantener la pantalla encendida mientras escucha</span>
+        </label>
+        <label class="switch">
+          <input type="checkbox" id="showLog">
+          <span>Mostrar registro de diagnóstico</span>
         </label>
       </fieldset>
 

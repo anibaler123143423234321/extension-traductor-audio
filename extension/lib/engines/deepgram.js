@@ -1,6 +1,9 @@
 import { AppError } from '../errors.js';
 import { getLanguage } from '../languages.js';
 import { PcmCapture, PCM_SAMPLE_RATE, floatTo16BitPcm } from '../audio/pcm-capture.js';
+import { createLogger } from '../log.js';
+
+const log = createLogger('deepgram');
 
 const FRAMES_PER_PACKET = 5; // 5 × 20 ms = 100 ms por envío
 const MAX_UTTERANCE_CHARS = 240;
@@ -77,12 +80,14 @@ export class DeepgramEngine {
       utterance_end_ms: '1000'
     });
 
+    log.info('Conectando', { modelo: this.language.deepgramModel, idioma: this.language.code });
     return new Promise((resolve, reject) => {
       const socket = new WebSocket(`wss://api.deepgram.com/v1/listen?${params}`, ['token', this.apiKey]);
       socket.binaryType = 'arraybuffer';
       let opened = false;
 
       socket.onopen = () => {
+        log.info('Conectado');
         opened = true;
         this.socket = socket;
         this.reconnects = 0;
@@ -90,6 +95,7 @@ export class DeepgramEngine {
       };
       socket.onmessage = (event) => this.#handleMessage(event.data);
       socket.onclose = (event) => {
+        log.warn('Conexión cerrada', { codigo: event.code, motivo: event.reason || undefined, abierta: opened });
         if (!opened) {
           reject(new AppError(
             'deepgram-connect',
@@ -111,6 +117,7 @@ export class DeepgramEngine {
       return;
     }
     this.reconnects++;
+    log.warn('Reconectando', { intento: this.reconnects });
     this.onWarning?.('Reconectando con Deepgram…');
     await new Promise((r) => setTimeout(r, 500 * this.reconnects));
     if (!this.running) return;
@@ -139,6 +146,7 @@ export class DeepgramEngine {
       return;
     }
 
+    if (message.type === 'Metadata') log.debug('Metadatos', { request_id: message.request_id });
     if (message.type === 'UtteranceEnd') {
       this.#flushUtterance();
       return;

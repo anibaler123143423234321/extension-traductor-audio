@@ -1,5 +1,8 @@
 import { AppError } from '../errors.js';
 import { getLanguage } from '../languages.js';
+import { createLogger } from '../log.js';
+
+const log = createLogger('voz-navegador');
 
 const SpeechRecognitionImpl = globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition;
 
@@ -52,15 +55,22 @@ export class WebSpeechEngine {
       );
     }
     this.running = true;
+    log.info('Iniciando reconocimiento de voz del navegador', {
+      idioma: this.lang,
+      fuente: this.track ? `pista: ${this.track.label || 'audio'}` : 'micrófono predeterminado del sistema',
+      continuo: !IS_ANDROID
+    });
     try {
       await this.#startSession();
     } catch (error) {
+      log.error('No se pudo iniciar', { codigo: error.code, mensaje: error.message });
       this.stop();
       throw error;
     }
   }
 
   stop() {
+    if (this.running) log.info('Reconocimiento detenido');
     this.running = false;
     clearTimeout(this.restartTimer);
     if (this.recognition) {
@@ -91,12 +101,22 @@ export class WebSpeechEngine {
         else resolve();
       };
 
+      const sessionCreatedAt = Date.now();
       recognition.onstart = () => {
         this.sessionStartedAt = Date.now();
+        log.info('start: el reconocimiento está escuchando', { ms: this.sessionStartedAt - sessionCreatedAt });
         settle();
       };
+      // Eventos de diagnóstico: indican si llega audio, sonido y voz.
+      recognition.onaudiostart = () => log.info('audiostart: llega audio del micrófono');
+      recognition.onsoundstart = () => log.info('soundstart: se detecta sonido');
+      recognition.onspeechstart = () => log.info('speechstart: se detecta voz');
+      recognition.onspeechend = () => log.debug('speechend: terminó la voz');
+      recognition.onaudioend = () => log.debug('audioend: se dejó de capturar audio');
+      recognition.onnomatch = () => log.warn('nomatch: hubo voz pero no se reconoció ninguna palabra');
       recognition.onresult = (event) => this.#handleResult(event);
       recognition.onerror = (event) => {
+        log.warn(`error: ${event.error}`, event.message ? { mensaje: event.message } : undefined);
         const error = this.#mapError(event.error);
         if (!error) return;
         if (!settled) settle(error);
@@ -107,6 +127,7 @@ export class WebSpeechEngine {
       try {
         if (this.track) recognition.start(this.track);
         else recognition.start();
+        log.debug('start() llamado; esperando el evento start…');
       } catch (error) {
         settle(new AppError('webspeech-start', `No se pudo iniciar Chrome Live: ${error.message}`, { cause: error }));
       }
@@ -123,6 +144,7 @@ export class WebSpeechEngine {
       const text = result[0]?.transcript?.trim() ?? '';
       if (!text) continue;
       if (result.isFinal) {
+        log.info(`resultado final: "${text}"`, { confianza: Number(result[0].confidence?.toFixed(2)) });
         this.onTranscript({ text, isFinal: true });
       } else {
         interim += `${text} `;
@@ -133,12 +155,17 @@ export class WebSpeechEngine {
     this.silentSessions = 0;
     this.sessionHadResult = true;
     if (this.pendingInterim) {
+      log.debug(`parcial: "${this.pendingInterim}"`);
       this.onTranscript({ text: this.pendingInterim, isFinal: false });
       if (this.pendingInterim.length > MAX_INTERIM_CHARS) this.recognition?.stop();
     }
   }
 
   #handleEnd() {
+    log.info('end: terminó la sesión de reconocimiento', {
+      duracionMs: this.sessionStartedAt ? Date.now() - this.sessionStartedAt : 0,
+      huboResultado: this.sessionHadResult
+    });
     // Si la sesión terminó con texto sin confirmar, se confirma para no perderlo.
     if (this.pendingInterim) {
       this.onTranscript({ text: this.pendingInterim, isFinal: true });
@@ -160,6 +187,7 @@ export class WebSpeechEngine {
       return;
     }
     const delay = shortSession ? Math.min(2000, 150 * this.rapidRestarts) : 0;
+    log.debug('Reiniciando la sesión', { esperaMs: delay, reiniciosRapidos: this.rapidRestarts });
     this.restartTimer = setTimeout(() => {
       if (!this.running) return;
       this.#startSession().catch((error) => this.#fail(error));
@@ -170,6 +198,7 @@ export class WebSpeechEngine {
     switch (code) {
       case 'no-speech':
         // Sin voz durante ~2 sesiones seguidas: probablemente no llega audio.
+        log.warn('Sesión sin voz detectada', { sesionesSeguidas: this.silentSessions + 1 });
         if (++this.silentSessions === 2) {
           this.onWarning?.('No se detecta voz. Comprueba que el micrófono correcto esté activo y sin silenciar, y que se hable en el idioma elegido.');
         }
@@ -217,5 +246,6 @@ export function supportsTrackInput() {
     return (trackInputSupport = error instanceof TypeError);
   }
   try { probe.abort(); } catch { /* sin efecto */ }
+  log.warn('Este navegador no permite pasar una pista de audio a SpeechRecognition.start()');
   return (trackInputSupport = false);
 }

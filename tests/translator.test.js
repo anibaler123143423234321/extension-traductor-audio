@@ -4,6 +4,19 @@ import { translateText, parseGoogleResponse, normalizeText } from '../extension/
 import { cleanTranscript } from '../extension/lib/engines/groq.js';
 import { normalizeSettings } from '../extension/lib/settings.js';
 import { resolveEngineOrder } from '../extension/lib/engines/index.js';
+import { createLogger, getLogEntries, formatLogEntry, setConsoleLogging } from '../extension/lib/log.js';
+
+setConsoleLogging(false);
+
+test('el registro guarda entradas legibles y no crece sin límite', () => {
+  const log = createLogger('prueba');
+  for (let i = 0; i < 450; i++) log.debug(`mensaje ${i}`);
+  log.info('micrófono abierto', { dispositivo: 'MacBook' });
+  const entries = getLogEntries();
+  assert.ok(entries.length <= 400);
+  const line = formatLogEntry(entries.at(-1));
+  assert.match(line, /^\d{2}:\d{2}:\d{2}\.\d{3} INFO {2}\[prueba\] micrófono abierto \{"dispositivo":"MacBook"\}$/);
+});
 
 test('parseGoogleResponse une los fragmentos traducidos', () => {
   const data = [[['Hola, ', 'Hello, ', null], ['¿cómo estás?', 'how are you?', null]], null, 'en'];

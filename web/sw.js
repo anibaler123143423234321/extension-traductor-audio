@@ -4,7 +4,7 @@
  *   mezclar versiones tras una actualización); la caché solo sin conexión.
  * - Peticiones a otros dominios (traducción, Deepgram, Groq): nunca se cachean.
  */
-const CACHE = 'liveaudio-web-v1';
+const CACHE = 'liveaudio-web-v2';
 const SHELL = [
   './',
   './index.html',
@@ -16,6 +16,7 @@ const SHELL = [
   './icons/favicon-32.png',
   '../extension/lib/pipeline.js',
   '../extension/lib/errors.js',
+  '../extension/lib/log.js',
   '../extension/lib/languages.js',
   '../extension/lib/translator.js',
   '../extension/lib/engines/index.js',

@@ -1,6 +1,9 @@
 import { AppError, serializeError } from './errors.js';
 import { ENGINES, resolveEngineOrder } from './engines/index.js';
 import { translateText, normalizeText } from './translator.js';
+import { createLogger } from './log.js';
+
+const log = createLogger('pipeline');
 
 // Frecuencia máxima con la que se traduce el texto parcial mientras se habla.
 const INTERIM_TRANSLATE_INTERVAL_MS = 350;
@@ -55,6 +58,11 @@ export class CaptionPipeline {
   async start() {
     this.running = true;
     this.order = resolveEngineOrder(this.settings);
+    log.info('Iniciando', {
+      motores: this.order,
+      idiomas: `${this.settings.sourceLang} → ${this.settings.targetLang}`,
+      claves: { deepgram: Boolean(this.settings.deepgramApiKey), groq: Boolean(this.settings.groqApiKey) }
+    });
     try {
       await this.#startFrom(0);
     } catch (error) {
@@ -64,6 +72,7 @@ export class CaptionPipeline {
   }
 
   stop() {
+    if (this.running) log.info('Detenido');
     this.running = false;
     const engine = this.engine;
     this.engine = null;
@@ -83,6 +92,7 @@ export class CaptionPipeline {
       if (!Engine) continue;
 
       let engine = null;
+      log.info(`Probando motor ${Engine.id}`);
       try {
         const track = await this.#trackFor(Engine);
         if (!this.running) return;
@@ -102,6 +112,7 @@ export class CaptionPipeline {
       } catch (error) {
         this.engine = null;
         lastError = error;
+        log.warn(`El motor ${Engine.id} no arrancó`, { codigo: error.code, mensaje: error.message });
         if (i < this.order.length - 1) {
           this.onStatus({ type: 'warning', code: error.code, message: `${Engine.label}: ${error.message} Probando otro motor…` });
         }
@@ -112,6 +123,7 @@ export class CaptionPipeline {
         engine.stop();
         return;
       }
+      log.info(`Motor activo: ${Engine.id}`);
       this.onStatus({ type: 'engine', engine: Engine.id, label: Engine.label });
       return;
     }
@@ -122,12 +134,16 @@ export class CaptionPipeline {
     if (!this.acquireTrack) return this.track;
     if (Engine.opensOwnMic) {
       if (this.track) {
+        log.debug('Se libera el micrófono: el motor abre el suyo propio');
         this.releaseTrack?.(this.track);
         this.track = null;
       }
       return null;
     }
-    this.track ??= await this.acquireTrack();
+    if (!this.track) {
+      this.track = await this.acquireTrack();
+      log.info('Micrófono abierto', { dispositivo: this.track?.label });
+    }
     return this.track;
   }
 
@@ -141,6 +157,7 @@ export class CaptionPipeline {
     if (engine !== this.engine || !this.running) return;
     this.engine = null;
     const label = engine.constructor.label;
+    log.error(`El motor ${engine.constructor.id} falló durante la escucha`, { codigo: error.code, mensaje: error.message });
 
     if (this.engineIndex + 1 < this.order.length) {
       this.onStatus({ type: 'warning', code: error.code, message: `${label}: ${error.message} Cambiando de motor…` });
@@ -162,7 +179,10 @@ export class CaptionPipeline {
     if (!clean) return;
 
     const id = this.segmentId;
-    if (isFinal) this.segmentId++;
+    if (isFinal) {
+      this.segmentId++;
+      log.info(`Frase #${id}: "${clean}"`);
+    }
 
     let segment = this.segments.get(id);
     if (!segment) {
@@ -198,9 +218,12 @@ export class CaptionPipeline {
     segment.timer = null;
     segment.lastRequestAt = Date.now();
     const { version, text, final } = segment;
+    const startedAt = Date.now();
 
     try {
       const translated = await this.translate(text, this.settings.sourceLang, this.settings.targetLang);
+      if (final) log.info(`Traducción #${segment.id}: "${translated}"`, { ms: Date.now() - startedAt });
+      else log.debug(`Traducción parcial #${segment.id}: "${translated}"`, { ms: Date.now() - startedAt });
       // Se descartan respuestas antiguas que lleguen después de otras más nuevas.
       if (!this.running || version <= segment.applied) return;
       segment.applied = version;
@@ -208,6 +231,7 @@ export class CaptionPipeline {
       this.#emit(segment, final && version === segment.version);
     } catch (error) {
       if (!this.running) return;
+      log.error(`No se pudo traducir #${segment.id}`, { mensaje: error.message, ms: Date.now() - startedAt });
       if (final && version === segment.version) {
         segment.failed = true;
         this.#emit(segment, true);

@@ -258,6 +258,32 @@ body.translation-only .original { display: none; }
 body.translation-only .t-original { display: none; }
 .transcript-empty { color: var(--text-3); font-size: 14px; text-align: center; padding: 18px 8px; border: 0 !important; background: none !important; }
 
+/* Diagnóstico */
+.debug-panel {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px dashed color-mix(in srgb, var(--warn) 60%, transparent);
+  padding: 10px 14px 0;
+}
+.debug-log {
+  margin: 0;
+  padding: 8px 0 10px;
+  height: 26dvh;
+  overflow: auto;
+  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-2);
+}
+.debug-log .debug { color: var(--text-3); }
+.debug-log .info { color: var(--text); }
+.debug-log .warn { color: var(--warn); }
+.debug-log .error { color: var(--danger); }
+body.focus .debug-panel { display: none; }
+
 /* Botón de micrófono */
 .dock {
   display: flex;

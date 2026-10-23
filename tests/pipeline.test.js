@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { CaptionPipeline } from '../extension/lib/pipeline.js';
 import { AppError } from '../extension/lib/errors.js';
+import { setConsoleLogging } from '../extension/lib/log.js';
+
+setConsoleLogging(false);
 
 function fakeEngine(id, { failOnStart, opensOwnMic = false } = {}) {
   return class FakeEngine {

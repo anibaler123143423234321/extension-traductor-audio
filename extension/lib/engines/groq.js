@@ -2,6 +2,9 @@ import { AppError } from '../errors.js';
 import { PcmCapture, PCM_SAMPLE_RATE, PCM_FRAME_SIZE } from '../audio/pcm-capture.js';
 import { VadSegmenter } from '../audio/vad.js';
 import { encodeWav } from '../audio/wav.js';
+import { createLogger } from '../log.js';
+
+const log = createLogger('groq');
 
 const ENDPOINT = 'https://api.groq.com/openai/v1/audio/transcriptions';
 const MODEL = 'whisper-large-v3-turbo';
@@ -83,6 +86,7 @@ export class GroqEngine {
 
   enqueue(samples) {
     if (!this.running) return;
+    log.debug('Frase detectada', { segundos: Number((samples.length / PCM_SAMPLE_RATE).toFixed(2)), enCola: this.queue.length + 1 });
     this.queue.push(samples);
     this.#pump();
   }
@@ -92,6 +96,7 @@ export class GroqEngine {
     while (this.running && this.queue.length && this.inFlight < MAX_IN_FLIGHT) {
       const waitMs = this.#rateLimitWait();
       if (waitMs > 0) {
+        log.debug('Esperando por el límite de peticiones', { esperaMs: waitMs });
         this.pumpTimer = setTimeout(() => this.#pump(), waitMs);
         return;
       }
@@ -113,9 +118,12 @@ export class GroqEngine {
   async #transcribe(seq, samples) {
     this.inFlight++;
     let text = '';
+    const startedAt = Date.now();
     try {
       text = await this.#request(samples);
+      log.info(`Respuesta #${seq}: "${text}"`, { ms: Date.now() - startedAt, segundosAudio: Number((samples.length / PCM_SAMPLE_RATE).toFixed(2)) });
     } catch (error) {
+      log.warn(`Petición #${seq} falló`, { codigo: error.code ?? error.name, mensaje: error.message, ms: Date.now() - startedAt });
       if (error.fatal) {
         this.#fail(error);
         return;
