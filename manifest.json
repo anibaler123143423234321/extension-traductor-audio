@@ -1,0 +1,45 @@
+{
+  "manifest_version": 3,
+  "name": "LiveAudio Translate | Inglés a Español en Vivo",
+  "version": "1.0.0",
+  "description": "Captura el audio en inglés de cualquier pestaña o plataforma web, lo transcribe y traduce al español en segundos con subtítulos flotantes.",
+  "permissions": ["tabCapture", "offscreen", "activeTab", "storage", "scripting"],
+  "host_permissions": [
+    "<all_urls>",
+    "https://api.groq.com/*",
+    "https://translate.googleapis.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "LiveAudio Translate",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "toggle-caption": {
+      "suggested_key": {
+        "default": "Alt+Shift+T"
+      },
+      "description": "Alternar subtítulos en la pestaña actual"
+    }
+  }
+}

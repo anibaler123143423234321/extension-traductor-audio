@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LiveAudio Translate</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Encabezado -->
+    <header class="app-header">
+      <div class="logo-box">
+        <img src="icons/icon48.png" alt="Logo" class="logo-img">
+        <div>
+          <h1 class="logo-title">LiveAudio <span>Translate</span></h1>
+          <p class="logo-subtitle">Inglés a Español en Vivo</p>
+        </div>
+      </div>
+      <div class="status-badge" id="statusBadge">
+        <span class="status-dot"></span>
+        <span class="status-text">Listo</span>
+      </div>
+    </header>
+
+    <!-- Botón Principal de Acción -->
+    <section class="main-action-section">
+      <div class="source-selector">
+        <label class="source-option">
+          <input type="radio" name="audioSource" value="tab" id="srcTab" checked>
+          <span>🌐 Esta Pestaña</span>
+        </label>
+        <label class="source-option">
+          <input type="radio" name="audioSource" value="window" id="srcWindow">
+          <span>🖥️ Otra Ventana / Zoom</span>
+        </label>
+      </div>
+
+      <button id="btnToggleCapture" class="btn-primary">
+        <span class="btn-icon" id="btnIcon">▶</span>
+        <span id="btnText">Iniciar en esta pestaña</span>
+      </button>
+
+      <!-- Botón para Segundo Monitor / Ventana Independiente -->
+      <button id="btnOpenViewer" class="btn-secondary" title="Abre una ventana independiente para colocar en tu segundo monitor mientras compartes pantalla">
+        <span class="btn-icon">🗗</span>
+        <span>Abrir en Segundo Monitor</span>
+      </button>
+      
+      <div class="tab-info" id="tabInfo">
+        <span class="tab-label">Fuente:</span>
+        <span class="tab-title" id="tabTitle">Pestaña activa</span>
+      </div>
+
+      <!-- Ecualizador visual animado -->
+      <div class="audio-visualizer" id="visualizer">
+        <span class="bar bar-1"></span>
+        <span class="bar bar-2"></span>
+        <span class="bar bar-3"></span>
+        <span class="bar bar-4"></span>
+        <span class="bar bar-5"></span>
+        <span class="bar bar-6"></span>
+      </div>
+    </section>
+
+    <!-- Configuración Groq Whisper Turbo -->
+    <section class="config-card">
+      <div class="card-header-clean">
+        <span class="icon-brand">⚡</span>
+        <span class="card-brand-title">Motor: Groq Whisper Turbo</span>
+        <span class="badge-free">100% Gratis</span>
+      </div>
+
+      <p class="config-desc">
+        <strong>Whisper Large v3 Turbo (OpenAI en Groq LPU).</strong> El más rápido (~180ms) con 2,000 peticiones/día sin tarjeta. Traduce al español gratis.
+      </p>
+
+      <div class="input-group">
+        <input type="password" id="groqKeyInput" placeholder="Pega tu clave gsk_..." autocomplete="off">
+        <button class="btn-icon-only toggle-eye" data-target="groqKeyInput" title="Ver/Ocultar">👁</button>
+        <button id="btnSaveGroq" class="btn-accent">Guardar</button>
+      </div>
+
+      <a href="https://console.groq.com/keys" target="_blank" class="free-key-link">
+        ➜ Obtener clave gratis en Groq Cloud (Google Login, sin tarjeta)
+      </a>
+    </section>
+
+    <!-- Opciones de Subtítulos -->
+    <section class="settings-grid">
+      <div class="setting-item">
+        <label for="intervalSelect">Frecuencia de captura:</label>
+        <select id="intervalSelect">
+          <option value="2500">2.5s (Ultra rápido)</option>
+          <option value="3500" selected>3.5s (Equilibrado)</option>
+          <option value="5000">5.0s (Frases largas)</option>
+        </select>
+      </div>
+      <div class="setting-item">
+        <label for="modeSelect">Visualización:</label>
+        <select id="modeSelect">
+          <option value="bilingual" selected>Bilingüe (EN + ES)</option>
+          <option value="spanish">Solo Español</option>
+        </select>
+      </div>
+    </section>
+
+    <!-- Historial de Transcripciones -->
+    <section class="history-section">
+      <div class="history-header">
+        <span class="history-title">Historial de frases</span>
+        <div class="history-actions">
+          <button id="btnCopyHistory" class="btn-small" title="Copiar al portapapeles">📋 Copiar</button>
+          <button id="btnDownloadHistory" class="btn-small" title="Descargar archivo .txt">💾 Guardar</button>
+          <button id="btnClearHistory" class="btn-small btn-danger" title="Borrar historial">🗑️</button>
+        </div>
+      </div>
+      <div class="history-feed" id="historyFeed">
+        <div class="history-empty">Las frases traducidas aparecerán aquí en vivo...</div>
+      </div>
+    </section>
+
+    <!-- Recordatorio de Chrome Nativo -->
+    <div class="native-caption-banner">
+      💡 <span>¿Sin claves? En Chrome: <code>Menú → Configuración → Accesibilidad → Subtítulos instantáneos</code>.</span>
+    </div>
+
+    <!-- Pie de página -->
+    <footer class="app-footer">
+      <span>Atajo: <kbd>Alt + Shift + T</kbd> para activar/desactivar</span>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
