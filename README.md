@@ -1,8 +1,9 @@
 # LiveAudio Translate 🎧
 
-Extensión de Google Chrome (Manifest V3) que escucha el audio de una **pestaña**, de **otra ventana o app** (Zoom, Teams…) o del **micrófono**, y muestra **subtítulos traducidos en tiempo real** sobre la página o en una ventana para tu segundo monitor.
+Subtítulos traducidos en tiempo real, en dos formatos:
 
-Funciona en **Windows y macOS** (Chrome, Edge y otros navegadores basados en Chromium).
+- **🧩 Extensión de Chrome** (Windows y macOS): escucha el audio de una **pestaña**, de **otra ventana o app** (Zoom, Teams…) o del **micrófono**, y muestra los subtítulos sobre la página o en una ventana para tu segundo monitor.
+- **📱 Web para el celular** (Android y iPhone): se abre con un enlace o un código QR, usa el micrófono del celular y muestra la traducción en vivo. No hay nada que instalar. → [ver sección](#-web-para-el-celular)
 
 ---
 
@@ -103,9 +104,50 @@ Las claves se guardan solo en tu navegador (`chrome.storage.local`) y no se sinc
 
 ---
 
+## 📱 Web para el celular
+
+La carpeta [`web/`](web/) es una página HTML que cualquiera abre desde su celular. Toca el micrófono, acerca el celular a quien habla en inglés (o al parlante) y lee la traducción al español en tiempo real.
+
+### Publicarla gratis con GitHub Pages
+
+El micrófono del celular solo funciona en páginas **https://**, así que hay que publicarla. Solo se hace una vez:
+
+1. En GitHub abre el repositorio → **Settings** → **Pages**.
+2. En **Build and deployment** elige **Deploy from a branch**.
+3. Elige la rama **`web-movil`** (o `main` cuando la fusiones) y la carpeta **`/ (root)`**, y pulsa **Save**.
+4. En un par de minutos estará en:
+   **https://anibaler123143423234321.github.io/extension-traductor-audio/**
+   (la raíz redirige a `/web/`).
+
+> GitHub Pages es gratis para repositorios públicos. Si el repositorio es privado, hace falta un plan de pago de GitHub, o puedes publicar la carpeta en otro hosting estático con HTTPS (Netlify, Cloudflare Pages, Vercel). Sube el repositorio completo, porque la web usa el código de `extension/lib`.
+
+### Usarla
+
+1. Abre el enlace en el celular, o pulsa el botón **QR** de la web para que otros lo escaneen con la cámara.
+2. Toca el **micrófono 🎙️** y acepta el permiso.
+3. Arriba se ve la traducción en grande y, debajo, la transcripción completa. Puedes copiarla o descargarla en `.txt`.
+4. **⛶** activa el modo presentación (solo el subtítulo, letra más grande).
+5. **⚙️ Ajustes:** idiomas, motor de voz, claves, tamaño de letra, bilingüe o solo traducción, y mantener la pantalla encendida.
+6. Para tenerla como app: menú del navegador → **Añadir a pantalla de inicio**.
+
+### Compatibilidad
+
+| Celular | Navegador | Motor gratuito (sin clave) |
+|---|---|---|
+| Android | **Google Chrome** | ✅ |
+| iPhone / iPad | **Safari** (con Dictado activado: Ajustes → General → Teclado → Dictado) | ✅ |
+| Cualquiera | Firefox u otros | ❌ → usa una clave de **Deepgram** o **Groq** |
+
+- Con clave de **Deepgram** funciona en cualquier navegador y es lo más preciso.
+- Si bloqueas la pantalla o cambias de app, la escucha se pausa y continúa al volver. Si el navegador no lo permite, toca el micrófono otra vez. Por eso la opción de **mantener la pantalla encendida** viene activada.
+- En algunos Android se oye un pitido corto cada vez que el reconocimiento gratuito se reinicia entre frases. Con Deepgram no ocurre.
+- Las claves de API se guardan solo en ese celular. No pongas tu clave en la página publicada: cada persona agrega la suya si la necesita.
+
+---
+
 ## 🔒 Privacidad
 
-- El audio se envía **solo** al motor elegido: Google (Chrome Live), Deepgram o Groq.
+- El audio se envía **solo** al motor elegido: el servicio de voz del navegador (Google en Chrome, Apple en Safari), Deepgram o Groq.
 - El texto se envía a Google Translate para traducirlo.
 - El historial (últimas 300 frases) se guarda en tu navegador. Puedes copiarlo, exportarlo a `.txt` o borrarlo.
 
@@ -114,6 +156,8 @@ Las claves se guardan solo en tu navegador (`chrome.storage.local`) y no se sinc
 ## 👩‍💻 Desarrollo
 
 ```text
+web/                       ← web para el celular (HTML, CSS, JS, PWA)
+  index.html · app.js · app.css · sw.js · manifest.webmanifest
 extension/                 ← carpeta que se carga en Chrome
   manifest.json
   background.js            service worker: sesión, offscreen, historial, atajos
@@ -128,12 +172,15 @@ extension/                 ← carpeta que se carga en Chrome
     engines/               webspeech.js · deepgram.js · groq.js
     audio/                 AudioWorklet PCM 16 kHz, detector de voz, WAV
     translator.js          Google Translate con caché
+    (lib/ es compartido: la web también lo usa)
 tests/                     pruebas unitarias (node:test) y e2e (Playwright)
+scripts/serve.mjs          servidor local para probar la web
 ```
 
 ```bash
 npm install          # solo para desarrollo
 npm run check        # lint + pruebas unitarias
-npm run test:e2e     # carga la extensión en Chromium con APIs simuladas
+npm run web          # web en http://localhost:8080/web/ (en el ordenador; el celular necesita https)
+npm run test:e2e     # extensión + web en Chromium con micrófono y APIs simulados
                      # (Linux sin pantalla: xvfb-run npm run test:e2e)
 ```

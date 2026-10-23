@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>LiveAudio Translate · Traductor en vivo</title>
+  <meta name="description" content="Abre el micrófono de tu celular y lee en tiempo real la traducción al español de lo que se dice en inglés.">
+  <meta name="theme-color" content="#0b0f19">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="LiveAudio">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="app.css">
+  <script src="vendor/qrcode.js" defer></script>
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="topbar">
+      <div class="brand">
+        <img src="icons/icon-192.png" alt="" width="32" height="32">
+        <div>
+          <h1>LiveAudio <span>Translate</span></h1>
+          <p id="statusLine" class="status-line">Listo para escuchar</p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <button class="pill" id="btnLangs" aria-label="Cambiar idiomas">
+          <span id="langFrom">EN</span><span aria-hidden="true">→</span><span id="langTo">ES</span>
+        </button>
+        <button class="icon-btn" id="btnShare" aria-label="Compartir enlace">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM18 18h3v3h-3zM18 14h3v2h-3zM14 18h2v3h-2z"/></svg>
+        </button>
+        <button class="icon-btn" id="btnSettings" aria-label="Ajustes">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="banner" id="banner" role="alert" hidden>
+      <p id="bannerText"></p>
+      <div class="banner-actions">
+        <button class="banner-action" id="bannerAction" hidden></button>
+        <button class="banner-close" id="bannerClose" aria-label="Cerrar aviso">✕</button>
+      </div>
+    </div>
+
+    <main class="stage">
+      <section class="live-card" id="liveCard" aria-label="Subtítulo en vivo">
+        <div class="live-head">
+          <span class="live-badge" id="liveBadge">En pausa</span>
+          <button class="ghost-btn" id="btnFocus" aria-label="Modo presentación">⛶</button>
+        </div>
+        <p class="previous" id="textPrevious"></p>
+        <p class="translated pending" id="textTranslated">Toca el micrófono y acerca el celular a quien habla en inglés.</p>
+        <p class="original" id="textOriginal"></p>
+      </section>
+
+      <section class="transcript" aria-label="Transcripción">
+        <div class="transcript-head">
+          <h2>Transcripción</h2>
+          <div class="transcript-actions">
+            <button class="chip" id="btnCopy">Copiar</button>
+            <button class="chip" id="btnDownload">Descargar</button>
+            <button class="chip danger" id="btnClear">Borrar</button>
+          </div>
+        </div>
+        <ol class="transcript-list" id="transcriptList" role="log" aria-live="polite"></ol>
+      </section>
+    </main>
+
+    <footer class="dock">
+      <button class="mic-btn" id="btnMic" aria-label="Empezar a escuchar">
+        <span class="mic-ring" aria-hidden="true"></span>
+        <svg viewBox="0 0 24 24" aria-hidden="true" class="mic-icon"><path d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-6a3.5 3.5 0 0 0-7 0v6A3.5 3.5 0 0 0 12 15zm6-3.5a6 6 0 0 1-12 0H4.5a7.5 7.5 0 0 0 6.75 7.46V21.5h1.5v-2.54A7.5 7.5 0 0 0 19.5 11.5z"/></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true" class="stop-icon"><rect x="6" y="6" width="12" height="12" rx="2.5"/></svg>
+      </button>
+      <p class="dock-label" id="micLabel">Toca para escuchar</p>
+    </footer>
+  </div>
+
+  <!-- Ajustes -->
+  <dialog class="sheet" id="settingsSheet" aria-labelledby="settingsTitle">
+    <form method="dialog" class="sheet-body">
+      <div class="sheet-head">
+        <h2 id="settingsTitle">Ajustes</h2>
+        <button class="icon-btn" value="close" aria-label="Cerrar">✕</button>
+      </div>
+
+      <fieldset class="group">
+        <legend>Idiomas</legend>
+        <div class="lang-row">
+          <label class="field"><span>Audio en</span><select id="sourceLang"></select></label>
+          <button type="button" class="swap-btn" id="btnSwap" aria-label="Intercambiar idiomas">⇄</button>
+          <label class="field"><span>Traducir a</span><select id="targetLang"></select></label>
+        </div>
+      </fieldset>
+
+      <fieldset class="group">
+        <legend>Motor de voz</legend>
+        <div class="engine-list" id="engineList"></div>
+        <details class="keys">
+          <summary>Claves de API (opcionales)</summary>
+          <label class="field">
+            <span>Deepgram · streaming, máxima precisión</span>
+            <input type="password" id="deepgramKey" autocomplete="off" spellcheck="false" placeholder="Clave de Deepgram">
+          </label>
+          <a class="link" href="https://console.deepgram.com/signup" target="_blank" rel="noopener">Crear cuenta en Deepgram</a>
+          <label class="field">
+            <span>Groq · Whisper por frases</span>
+            <input type="password" id="groqKey" autocomplete="off" spellcheck="false" placeholder="gsk_...">
+          </label>
+          <a class="link" href="https://console.groq.com/keys" target="_blank" rel="noopener">Obtener clave gratis en Groq</a>
+          <p class="hint">Las claves se guardan solo en este dispositivo. No las compartas.</p>
+        </details>
+      </fieldset>
+
+      <fieldset class="group">
+        <legend>Pantalla</legend>
+        <label class="field">
+          <span>Tamaño de letra <output id="fontSizeValue"></output></span>
+          <input type="range" id="fontSize" min="18" max="56" step="2">
+        </label>
+        <div class="segmented" role="radiogroup" aria-label="Visualización">
+          <label><input type="radio" name="captionMode" value="bilingual"><span>Bilingüe</span></label>
+          <label><input type="radio" name="captionMode" value="translation"><span>Solo traducción</span></label>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="keepAwake">
+          <span>Mantener la pantalla encendida mientras escucha</span>
+        </label>
+      </fieldset>
+
+      <details class="group help">
+        <summary>Ayuda y compatibilidad</summary>
+        <ul>
+          <li><strong>Android:</strong> usa Google Chrome.</li>
+          <li><strong>iPhone / iPad:</strong> usa Safari y activa Dictado (Ajustes → General → Teclado → Dictado).</li>
+          <li>Acerca el celular a quien habla o al parlante. Con auriculares no se capta el audio del propio celular.</li>
+          <li>Si bloqueas la pantalla se pausa; al volver continúa sola.</li>
+          <li>Para instalarla como app: menú del navegador → <em>Añadir a pantalla de inicio</em>.</li>
+        </ul>
+      </details>
+    </form>
+  </dialog>
+
+  <!-- Compartir -->
+  <dialog class="sheet" id="shareSheet" aria-labelledby="shareTitle">
+    <form method="dialog" class="sheet-body share">
+      <div class="sheet-head">
+        <h2 id="shareTitle">Compartir</h2>
+        <button class="icon-btn" value="close" aria-label="Cerrar">✕</button>
+      </div>
+      <p class="hint">Que escaneen este código con la cámara del celular para abrir el traductor.</p>
+      <div class="qr" id="qr" aria-label="Código QR del enlace"></div>
+      <p class="share-url" id="shareUrl"></p>
+      <div class="share-actions">
+        <button type="button" class="btn" id="btnCopyLink">Copiar enlace</button>
+        <button type="button" class="btn primary" id="btnNativeShare" hidden>Compartir…</button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>

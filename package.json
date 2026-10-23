@@ -2,13 +2,14 @@
   "name": "liveaudio-translate",
   "version": "2.0.0",
   "private": true,
-  "description": "Extensión de Chrome: subtítulos traducidos en tiempo real del audio de pestañas, ventanas o micrófono.",
+  "description": "Subtítulos traducidos en tiempo real: extensión de Chrome y web para el celular.",
   "type": "module",
   "scripts": {
     "lint": "eslint .",
     "test": "node --test \"tests/*.test.js\"",
-    "test:e2e": "node tests/e2e/smoke.mjs",
-    "check": "npm run lint && npm test"
+    "test:e2e": "node tests/e2e/smoke.mjs && node tests/e2e/web.mjs",
+    "check": "npm run lint && npm test",
+    "web": "node scripts/serve.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",

@@ -4,10 +4,11 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { CaptionPipeline } from '../extension/lib/pipeline.js';
 import { AppError } from '../extension/lib/errors.js';
 
-function fakeEngine(id, { failOnStart } = {}) {
+function fakeEngine(id, { failOnStart, opensOwnMic = false } = {}) {
   return class FakeEngine {
     static id = id;
     static label = id;
+    static opensOwnMic = opensOwnMic;
     static instances = [];
     constructor(options) {
       this.options = options;
@@ -166,4 +167,75 @@ test('si el idioma de origen y destino coinciden no traduce', async () => {
   assert.equal(captions.at(-1).translated, 'Same language');
   assert.equal(captions.at(-1).complete, true);
   pipeline.stop();
+});
+
+test('web: el motor del navegador abre su propio micrófono (sin pista)', async () => {
+  const Live = fakeEngine('webspeech', { opensOwnMic: true });
+  let acquired = 0;
+  const pipeline = new CaptionPipeline({
+    settings: baseSettings,
+    engines: { webspeech: Live },
+    translate: slowTranslate({}),
+    acquireTrack: async () => { acquired++; return { id: 'mic' }; },
+    releaseTrack: () => {},
+    onCaption: () => {},
+    onStatus: () => {}
+  });
+  await pipeline.start();
+  assert.equal(acquired, 0, 'no debe abrir el micrófono dos veces');
+  assert.equal(Live.instances[0].options.track, null);
+  pipeline.stop();
+});
+
+test('web: libera el micrófono al pasar de Deepgram al motor del navegador', async () => {
+  const Deepgram = fakeEngine('deepgram', { failOnStart: true });
+  const Live = fakeEngine('webspeech', { opensOwnMic: true });
+  const released = [];
+  const pipeline = new CaptionPipeline({
+    settings: { ...baseSettings, deepgramApiKey: 'key' },
+    engines: { deepgram: Deepgram, webspeech: Live },
+    translate: slowTranslate({}),
+    acquireTrack: async () => ({ id: 'mic' }),
+    releaseTrack: (track) => released.push(track.id),
+    onCaption: () => {},
+    onStatus: () => {}
+  });
+  await pipeline.start();
+  assert.equal(Deepgram.instances[0].options.track.id, 'mic');
+  assert.deepEqual(released, ['mic']);
+  assert.equal(pipeline.engineId, 'webspeech');
+  pipeline.stop();
+});
+
+test('web: si se niega el micrófono, start() informa el error', async () => {
+  const Groq = fakeEngine('groq');
+  const pipeline = new CaptionPipeline({
+    settings: { ...baseSettings, engine: 'groq', groqApiKey: 'gsk' },
+    engines: { groq: Groq },
+    translate: slowTranslate({}),
+    acquireTrack: async () => { throw new AppError('mic-permission', 'Permiso de micrófono denegado.'); },
+    releaseTrack: () => {},
+    onCaption: () => {},
+    onStatus: () => {}
+  });
+  await assert.rejects(pipeline.start(), (error) => error.code === 'mic-permission');
+  assert.equal(Groq.instances.length, 0);
+});
+
+test('web: detener la escucha libera el micrófono', async () => {
+  const Groq = fakeEngine('groq');
+  const released = [];
+  const pipeline = new CaptionPipeline({
+    settings: { ...baseSettings, engine: 'groq', groqApiKey: 'gsk' },
+    engines: { groq: Groq },
+    translate: slowTranslate({}),
+    acquireTrack: async () => ({ id: 'mic' }),
+    releaseTrack: (track) => released.push(track.id),
+    onCaption: () => {},
+    onStatus: () => {}
+  });
+  await pipeline.start();
+  pipeline.stop();
+  assert.deepEqual(released, ['mic']);
+  assert.equal(Groq.instances[0].stopped, true);
 });

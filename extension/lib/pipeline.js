@@ -12,10 +12,27 @@ const WARNING_COOLDOWN_MS = 30000;
  *   onCaption({ id, original, translated, isFinal, complete, translationFailed, ts, engine })
  * Un mismo `id` se actualiza varias veces (parcial → final → traducido).
  * `complete` indica que la frase es definitiva y ya tiene su traducción.
+ *
+ * Audio: o bien se pasa `track` (extensión: pestaña, ventana…), o bien
+ * `acquireTrack` / `releaseTrack` (web con micrófono). En el segundo caso, los
+ * motores que abren el micrófono por sí mismos lo hacen sin pista, para no
+ * tener el micrófono abierto dos veces (en móviles suele fallar).
  */
 export class CaptionPipeline {
-  constructor({ track, audioContext, settings, onCaption, onStatus, engines = ENGINES, translate = translateText }) {
-    this.track = track;
+  constructor({
+    track,
+    acquireTrack,
+    releaseTrack,
+    audioContext,
+    settings,
+    onCaption,
+    onStatus,
+    engines = ENGINES,
+    translate = translateText
+  }) {
+    this.track = track ?? null;
+    this.acquireTrack = acquireTrack;
+    this.releaseTrack = releaseTrack;
     this.audioContext = audioContext;
     this.settings = settings;
     this.onCaption = onCaption;
@@ -51,6 +68,10 @@ export class CaptionPipeline {
     const engine = this.engine;
     this.engine = null;
     engine?.stop();
+    if (this.acquireTrack && this.track) {
+      this.releaseTrack?.(this.track);
+      this.track = null;
+    }
     for (const segment of this.segments.values()) clearTimeout(segment.timer);
     this.segments.clear();
   }
@@ -61,19 +82,22 @@ export class CaptionPipeline {
       const Engine = this.engines[this.order[i]];
       if (!Engine) continue;
 
-      const engine = new Engine({
-        track: this.track,
-        audioContext: this.audioContext,
-        sourceLang: this.settings.sourceLang,
-        apiKey: this.#apiKeyFor(Engine.id),
-        onTranscript: (transcript) => this.#handleTranscript(engine, transcript),
-        onError: (error) => this.#handleEngineError(engine, error),
-        onWarning: (message) => this.onStatus({ type: 'warning', message })
-      });
-      this.engine = engine;
-      this.engineIndex = i;
-
+      let engine = null;
       try {
+        const track = await this.#trackFor(Engine);
+        if (!this.running) return;
+
+        engine = new Engine({
+          track,
+          audioContext: this.audioContext,
+          sourceLang: this.settings.sourceLang,
+          apiKey: this.#apiKeyFor(Engine.id),
+          onTranscript: (transcript) => this.#handleTranscript(engine, transcript),
+          onError: (error) => this.#handleEngineError(engine, error),
+          onWarning: (message) => this.onStatus({ type: 'warning', message })
+        });
+        this.engine = engine;
+        this.engineIndex = i;
         await engine.start();
       } catch (error) {
         this.engine = null;
@@ -92,6 +116,19 @@ export class CaptionPipeline {
       return;
     }
     throw lastError ?? new AppError('no-engine', 'No hay ningún motor de voz disponible.');
+  }
+
+  async #trackFor(Engine) {
+    if (!this.acquireTrack) return this.track;
+    if (Engine.opensOwnMic) {
+      if (this.track) {
+        this.releaseTrack?.(this.track);
+        this.track = null;
+      }
+      return null;
+    }
+    this.track ??= await this.acquireTrack();
+    return this.track;
   }
 
   #apiKeyFor(engineId) {

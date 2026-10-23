@@ -2,7 +2,7 @@ import js from '@eslint/js';
 import globals from 'globals';
 
 export default [
-  { ignores: ['node_modules/', 'dist/'] },
+  { ignores: ['node_modules/', 'dist/', 'web/vendor/'] },
   js.configs.recommended,
   {
     languageOptions: {
@@ -23,6 +23,10 @@ export default [
     languageOptions: {
       globals: { ...globals.audioWorklet }
     }
+  },
+  {
+    files: ['web/sw.js'],
+    languageOptions: { sourceType: 'script', globals: { ...globals.serviceworker } }
   },
   {
     files: ['tests/**', 'scripts/**', 'eslint.config.js'],

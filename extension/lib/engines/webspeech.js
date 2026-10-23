@@ -7,15 +7,22 @@ const SpeechRecognitionImpl = globalThis.SpeechRecognition || globalThis.webkitS
 // el corte para que el subtítulo no crezca indefinidamente.
 const MAX_INTERIM_CHARS = 280;
 const MAX_RAPID_RESTARTS = 8;
+const START_TIMEOUT_MS = 15000;
+// En Chrome para Android el modo continuo duplica resultados: se usan sesiones
+// cortas que se reinician al terminar cada frase.
+const IS_ANDROID = /Android/i.test(globalThis.navigator?.userAgent ?? '');
 
 /**
- * Motor "Chrome Live": reconocimiento de voz en streaming de Chrome (gratis).
- * Recibe la pista de audio de la pestaña con SpeechRecognition.start(track),
- * disponible desde Chrome 133.
+ * Motor "Chrome Live": reconocimiento de voz en streaming del navegador (gratis).
+ * - Con `track`: escucha esa pista (audio de la pestaña) con
+ *   SpeechRecognition.start(track), disponible desde Chrome 133.
+ * - Sin `track`: escucha el micrófono directamente (web en el móvil).
  */
 export class WebSpeechEngine {
   static id = 'webspeech';
   static label = 'Chrome Live';
+  // Puede abrir el micrófono por sí mismo sin que se le pase una pista.
+  static opensOwnMic = true;
 
   constructor({ track, sourceLang, onTranscript, onError }) {
     this.track = track;
@@ -28,14 +35,15 @@ export class WebSpeechEngine {
     this.rapidRestarts = 0;
     this.networkErrors = 0;
     this.sessionStartedAt = 0;
+    this.sessionHadResult = false;
     this.restartTimer = null;
   }
 
   async start() {
     if (!SpeechRecognitionImpl) {
-      throw new AppError('webspeech-unavailable', 'Este navegador no incluye el reconocimiento de voz de Chrome.');
+      throw new AppError('webspeech-unavailable', 'Este navegador no incluye reconocimiento de voz gratuito.');
     }
-    if (!supportsTrackInput()) {
+    if (this.track && !supportsTrackInput()) {
       throw new AppError(
         'webspeech-track-unsupported',
         'Tu versión de Chrome no permite que el motor gratuito escuche la pestaña. Actualiza Chrome o usa Deepgram/Groq.'
@@ -66,11 +74,12 @@ export class WebSpeechEngine {
     return new Promise((resolve, reject) => {
       const recognition = new SpeechRecognitionImpl();
       recognition.lang = this.lang;
-      recognition.continuous = true;
+      recognition.continuous = !IS_ANDROID;
       recognition.interimResults = true;
       recognition.maxAlternatives = 1;
       this.recognition = recognition;
       this.pendingInterim = '';
+      this.sessionHadResult = false;
 
       let settled = false;
       const settle = (error) => {
@@ -94,11 +103,14 @@ export class WebSpeechEngine {
       recognition.onend = () => this.#handleEnd();
 
       try {
-        recognition.start(this.track);
+        if (this.track) recognition.start(this.track);
+        else recognition.start();
       } catch (error) {
         settle(new AppError('webspeech-start', `No se pudo iniciar Chrome Live: ${error.message}`, { cause: error }));
       }
-      setTimeout(() => settle(), 4000);
+      // Si el navegador no responde (ni empieza ni da error) se considera un fallo.
+      // El margen permite aceptar el aviso de permiso de micrófono.
+      setTimeout(() => settle(new AppError('webspeech-timeout', 'El reconocimiento de voz del navegador no respondió.')), START_TIMEOUT_MS);
     });
   }
 
@@ -116,6 +128,7 @@ export class WebSpeechEngine {
     }
     this.pendingInterim = interim.trim();
     this.networkErrors = 0;
+    this.sessionHadResult = true;
     if (this.pendingInterim) {
       this.onTranscript({ text: this.pendingInterim, isFinal: false });
       if (this.pendingInterim.length > MAX_INTERIM_CHARS) this.recognition?.stop();
@@ -130,13 +143,14 @@ export class WebSpeechEngine {
     }
     if (!this.running) return;
 
-    if (this.track.readyState !== 'live') {
+    if (this.track && this.track.readyState !== 'live') {
       this.#fail(new AppError('source-ended', 'La fuente de audio se cerró.'));
       return;
     }
 
-    // Chrome cierra la sesión periódicamente: se reinicia al instante.
-    const shortSession = Date.now() - this.sessionStartedAt < 1500;
+    // El navegador cierra la sesión periódicamente: se reinicia al instante.
+    // Solo cuentan como fallo las sesiones muy cortas que no reconocieron nada.
+    const shortSession = !this.sessionHadResult && Date.now() - this.sessionStartedAt < 1500;
     this.rapidRestarts = shortSession ? this.rapidRestarts + 1 : 0;
     if (this.rapidRestarts > MAX_RAPID_RESTARTS) {
       this.#fail(new AppError('webspeech-unstable', 'Chrome Live se detiene continuamente. Prueba otro motor.'));
@@ -160,12 +174,9 @@ export class WebSpeechEngine {
           ? new AppError('network', 'Chrome Live no puede conectar con el servicio de voz de Google. Revisa tu conexión.')
           : null;
       case 'not-allowed':
-        return new AppError(
-          'mic-permission',
-          'Chrome necesita que concedas permiso de micrófono a la extensión una vez para usar el motor gratuito.'
-        );
+        return new AppError('mic-permission', 'Falta el permiso de micrófono para el reconocimiento de voz.');
       case 'service-not-allowed':
-        return new AppError('webspeech-blocked', 'El reconocimiento de voz de Chrome está bloqueado en este navegador.');
+        return new AppError('webspeech-blocked', 'El reconocimiento de voz está bloqueado en este navegador.');
       case 'language-not-supported':
         return new AppError('language-not-supported', 'Chrome Live no admite el idioma de audio elegido.');
       case 'audio-capture':

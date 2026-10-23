@@ -7,7 +7,7 @@ export const PCM_FRAME_SIZE = 320; // 20 ms
 export class PcmCapture {
   static async create(track, { audioContext, onFrame }) {
     const context = audioContext ?? new AudioContext({ latencyHint: 'interactive' });
-    await context.audioWorklet.addModule(chrome.runtime.getURL('lib/audio/pcm-worklet.js'));
+    await context.audioWorklet.addModule(new URL('./pcm-worklet.js', import.meta.url));
     if (context.state === 'suspended') await context.resume().catch(() => {});
 
     const source = context.createMediaStreamSource(new MediaStream([track]));
